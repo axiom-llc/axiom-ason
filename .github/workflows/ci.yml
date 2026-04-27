@@ -12,4 +12,4 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: pip install pydantic pytest
-      - run: python -m pytest aoson/tests/ -q
+      - run: python -m pytest ason/tests/ -q

@@ -1,13 +1,13 @@
-"""AOSON executor — submits validated APEX plans via apex serve HTTP API."""
+"""ASON executor — submits validated APEX plans via apex serve HTTP API."""
 from __future__ import annotations
 import json
 import urllib.request
 import urllib.error
-from .schema import AOSONRequest, AOSONResult
+from .schema import ASONRequest, ASONResult
 from .validator import validate
 
 
-class AOSONExecutor:
+class ASONExecutor:
     def __init__(self, apex_url: str = "http://127.0.0.1:8080", api_key: str | None = None):
         self.apex_url = apex_url.rstrip("/")
         self.api_key = api_key
@@ -18,8 +18,8 @@ class AOSONExecutor:
             h["X-Apex-Key"] = self.api_key
         return h
 
-    def submit(self, req: AOSONRequest) -> dict:
-        result: AOSONResult = validate(req)
+    def submit(self, req: ASONRequest) -> dict:
+        result: ASONResult = validate(req)
         if not result.accepted:
             return {"accepted": False, "violations": result.violations, "apex_response": None}
 
@@ -41,8 +41,8 @@ class AOSONExecutor:
         return {"accepted": True, "violations": [], "apex_response": apex_response}
 
 
-def _plan_to_task(req: AOSONRequest) -> str:
-    """Serialize AOSONRequest to a task string apex run() can execute."""
+def _plan_to_task(req: ASONRequest) -> str:
+    """Serialize ASONRequest to a task string apex run() can execute."""
     steps = [{"tool": s.tool, "args": s.args} for s in req.plan.steps]
     policy = req.policy.model_dump()
-    return json.dumps({"aoson_plan": steps, "aoson_policy": policy})
+    return json.dumps({"ason_plan": steps, "ason_policy": policy})

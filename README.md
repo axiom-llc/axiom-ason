@@ -1,16 +1,16 @@
-# axiom-aoson
+# axiom-ason
 
-**v0.1.0** · AOSON — Autonomous Security Optimization Network · Decision and optimization engine for APEX · Python 3.11+ · MIT
+**v0.1.0** · ASON — Autonomous Security Optimization Network · Decision and optimization engine for APEX · Python 3.11+ · MIT
 
 ## System Boundary
 
 - **APEX** — execution / control plane
-- **AOSON** — decision / optimization engine
+- **ASON** — decision / optimization engine
 - **RAG** — grounding / retrieval substrate
 
 ## APEX Contract
 
-AOSON submits schema-valid plans to APEX:
+ASON submits schema-valid plans to APEX:
 
 ```json
 {

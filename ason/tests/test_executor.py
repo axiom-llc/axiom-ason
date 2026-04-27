@@ -1,18 +1,18 @@
-"""Tests for AOSON executor — offline (no apex serve required)."""
+"""Tests for ASON executor — offline (no apex serve required)."""
 import json
 import unittest.mock as mock
 import pytest
-from aoson.schema import AOSONRequest, ApexPlan, ApexPlanStep, Policy
-from aoson.executor import AOSONExecutor, _plan_to_task
+from ason.schema import ASONRequest, ApexPlan, ApexPlanStep, Policy
+from ason.executor import ASONExecutor, _plan_to_task
 
 
 def _req(steps, policy=None):
     p = ApexPlan(steps=[ApexPlanStep(tool=t, args=a) for t, a in steps])
-    return AOSONRequest(plan=p, policy=policy or Policy())
+    return ASONRequest(plan=p, policy=policy or Policy())
 
 
 def test_rejected_plan_never_submits():
-    ex = AOSONExecutor()
+    ex = ASONExecutor()
     req = _req([("shell", {"cmd": "ls"})])
     with mock.patch("urllib.request.urlopen") as m:
         result = ex.submit(req)
@@ -21,7 +21,7 @@ def test_rejected_plan_never_submits():
 
 
 def test_accepted_plan_submits():
-    ex = AOSONExecutor(api_key="test-key")
+    ex = ASONExecutor(api_key="test-key")
     req = _req([("read_file", {"path": "/tmp/x"})])
     fake_resp = mock.MagicMock()
     fake_resp.read.return_value = json.dumps({"run_id": 1, "exit_code": 0}).encode()
@@ -37,5 +37,5 @@ def test_plan_to_task_serializes():
     req = _req([("read_file", {"path": "/tmp/x"})])
     t = _plan_to_task(req)
     d = json.loads(t)
-    assert d["aoson_plan"][0]["tool"] == "read_file"
-    assert "aoson_policy" in d
+    assert d["ason_plan"][0]["tool"] == "read_file"
+    assert "ason_policy" in d

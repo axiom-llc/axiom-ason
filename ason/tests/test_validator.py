@@ -1,12 +1,12 @@
-"""Tests for AOSON validator."""
+"""Tests for ASON validator."""
 import pytest
-from aoson.schema import AOSONRequest, AOSONResult, ApexPlan, ApexPlanStep, Policy
-from aoson.validator import validate
+from ason.schema import ASONRequest, ASONResult, ApexPlan, ApexPlanStep, Policy
+from ason.validator import validate
 
 
 def _req(steps, policy=None):
     p = ApexPlan(steps=[ApexPlanStep(tool=t, args=a) for t, a in steps])
-    return AOSONRequest(plan=p, policy=policy or Policy())
+    return ASONRequest(plan=p, policy=policy or Policy())
 
 
 def test_accept_valid():

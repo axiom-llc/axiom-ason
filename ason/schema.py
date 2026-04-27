@@ -1,4 +1,4 @@
-"""AOSON core schema — APEX contract types."""
+"""ASON core schema — APEX contract types."""
 from __future__ import annotations
 from typing import Literal
 from pydantic import BaseModel, Field
@@ -20,12 +20,12 @@ class ApexPlan(BaseModel):
     steps: list[ApexPlanStep]
 
 
-class AOSONRequest(BaseModel):
+class ASONRequest(BaseModel):
     plan: ApexPlan
     policy: Policy = Field(default_factory=Policy)
 
 
-class AOSONResult(BaseModel):
+class ASONResult(BaseModel):
     accepted: bool
     violations: list[str] = Field(default_factory=list)
     risk_level: Literal["none", "low", "medium", "high"] = "none"

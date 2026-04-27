@@ -1,10 +1,10 @@
 [project]
-name = "axiom-aoson"
+name = "axiom-ason"
 version = "0.1.0"
-description = "AOSON — Autonomous Security Optimization Network"
+description = "ASON — Autonomous Security Optimization Network"
 authors = [{name = "AXIOM LLC"}]
 requires-python = ">=3.11"
 dependencies = ["axiom-apex"]
 
 [project.scripts]
-aoson = "aoson.__main__:main"
+ason = "ason.__main__:main"
