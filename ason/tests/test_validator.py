@@ -34,5 +34,5 @@ def test_reject_tool_not_in_allowed():
 
 
 def test_empty_allowed_tools_permits_all_non_blocked():
-    r = validate(_req([("http_get", {"url": "http://x"})], Policy(allowed_tools=[])))
+    r = validate(_req([("http_get", {"url": "http://x"})], Policy(allowed_tools=[], blast_radius="network")))
     assert r.accepted
