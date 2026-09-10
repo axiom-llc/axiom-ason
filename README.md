@@ -62,6 +62,20 @@ Offline tests cover policy, exact APEX execution, and failure propagation across
 python -m pytest ason/tests/ -q
 ```
 
+Component CI builds matching wheels from RAG and APEX `main` plus the ASON
+revision under test, then installs them together using their package metadata.
+It runs the complete suite outside the checkouts with `--import-mode=importlib`
+so ASON exercises the installed APEX runtime. Full portfolio/container checks
+remain in `axiom-infra`.
+
+Private RAG checkout uses this repository's `RAG_DEPLOY_KEY` Actions secret,
+backed by a dedicated read-only deploy key on `axiom-rag`. All checkouts remove
+credentials before builds or tests run. Fork pull requests cannot access this
+secret; validate those changes from a reviewed branch in this repository.
+To rotate the key, add a new read-only RAG deploy key, replace this secret, verify
+CI, then remove the old key. Delete the deploy key to revoke access immediately;
+these keys do not expire automatically. Never commit or log private key material.
+
 ## Usage
 ```bash
 pip install axiom-ason
