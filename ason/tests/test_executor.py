@@ -3,7 +3,7 @@ import json
 import unittest.mock as mock
 import pytest
 from ason.schema import ASONRequest, ApexPlan, ApexPlanStep, Policy
-from ason.executor import ASONExecutor, _plan_to_task
+from ason.executor import ASONExecutor, _apex_plan
 
 
 def _req(steps, policy=None):
@@ -33,9 +33,8 @@ def test_accepted_plan_submits():
     assert result["apex_response"]["run_id"] == 1
 
 
-def test_plan_to_task_serializes():
+def test_apex_plan_serializes():
     req = _req([("read_file", {"path": "/tmp/x"})])
-    t = _plan_to_task(req)
-    d = json.loads(t)
-    assert d["ason_plan"][0]["tool"] == "read_file"
-    assert "ason_policy" in d
+    d = _apex_plan(req)
+    assert d["steps"][0]["name"] == "read_file"
+    assert d["steps"][-1]["type"] == "halt"

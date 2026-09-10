@@ -16,7 +16,7 @@ import pytest
 from pydantic import ValidationError
 from ason.schema import ASONRequest, ApexPlan, ApexPlanStep, Policy
 from ason.validator import validate
-from ason.executor import ASONExecutor, _plan_to_task
+from ason.executor import ASONExecutor, _apex_plan
 
 
 def _req(steps, policy=None):
@@ -128,11 +128,11 @@ class TestMalformedPlan:
         with pytest.raises(ValidationError):
             Policy(blast_radius="galaxy")
 
-    def test_plan_to_task_round_trips(self):
+    def test_apex_plan_round_trips(self):
         req = _req([("read_file", {"path": "/tmp/x"})], Policy(blast_radius="network"))
-        d = json.loads(_plan_to_task(req))
-        assert d["ason_plan"][0]["tool"] == "read_file"
-        assert d["ason_policy"]["blast_radius"] == "network"
+        d = _apex_plan(req)
+        assert d["steps"][0]["name"] == "read_file"
+        assert d["steps"][-1]["type"] == "halt"
 
 
 class TestTimeoutElicitation:

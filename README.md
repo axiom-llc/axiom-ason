@@ -1,5 +1,5 @@
 # axiom-ason
-**v0.1.0** · ASON — Autonomous Security Optimization Network · Pre-execution policy enforcement layer for APEX · Python 3.11+ · MIT
+**v0.2.0** · ASON — Autonomous Security Optimization Network · Pre-execution policy enforcement layer for APEX · Python 3.11+ · MIT
 
 ## System Boundary
 - **APEX** — execution / control plane
@@ -14,8 +14,8 @@ Enforcement at validation time:
 - No step invokes a tool in the blocked set (`shell` by default)
 - If `allowed_tools` is non-empty, every step's tool must appear in it
 - `blast_radius` classification blocks tools by impact envelope:
-  - `none` — blocks `write_file`, `delete_file`, `http_get`, `http_post` (read-only)
-  - `local` — blocks `http_get`, `http_post` (filesystem only)
+  - `none` — blocks filesystem/memory writes and network tools (read-only)
+  - `local` — blocks `http_get`, `http_post`, and `rag_multi_query` (local effects only)
   - `network` — no additional blocks
 
 ## APEX Contract
@@ -33,13 +33,24 @@ ASON submits schema-valid plans to APEX:
 }
 ```
 
-Validated plans are submitted to `POST /run` via the APEX HTTP API. Rejected plans never reach the executor.
+Requires APEX 3.1.0 or newer. ASON translates approved steps into APEX tool
+steps followed by a halt and submits `{"plan": ...}` to `POST /run`. APEX validates
+the entire plan against its active registry and executes it without replanning.
+Its 32-step ceiling includes the final halt (at most 31 tool calls). Schema-invalid
+or unavailable tools are rejected by APEX before execution. Unclassified custom
+tools are rejected by ASON; deployed tool implementations must match their stated
+classification. Policy enforcement assumes callers cannot bypass ASON using the
+APEX API key directly.
+
+`accepted` reports ASON policy approval. Check `error` and
+`apex_response.exit_code` for execution success. The CLI exits nonzero on policy,
+transport, APEX validation, or execution failure.
 
 ## Rollback
-On execution failure, ASON generates a compensating plan by traversing the run's event log in reverse and applying the reversal map (`write_file → delete_file`). `shell` invocations are flagged as non-reversible. The rollback plan is itself policy-validated before submission.
+The optional `generate_rollback` helper generates a compensating plan by traversing the run's event log in reverse and applying the reversal map (`write_file → delete_file`). `shell` invocations are flagged as non-reversible. The helper is not invoked automatically by the executor; `rollback_on_failure` currently does not trigger automatic rollback. Generated reversal plans require review and policy validation before submission; deleting a written file cannot restore overwritten contents.
 
 ## Test Suite
-40 tests, 0 failures across 6 adversarial categories:
+Offline tests cover policy, exact APEX execution, and failure propagation across these categories:
 - CAT1: blast_radius rejection
 - CAT2: max_steps violation
 - CAT3: tool allowlist enforcement

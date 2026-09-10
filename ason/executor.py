@@ -23,7 +23,7 @@ class ASONExecutor:
         if not result.accepted:
             return {"accepted": False, "violations": result.violations, "apex_response": None}
 
-        payload = json.dumps({"task": _plan_to_task(req)}).encode()
+        payload = json.dumps({"plan": _apex_plan(req)}).encode()
         http_req = urllib.request.Request(
             f"{self.apex_url}/run",
             data=payload,
@@ -41,8 +41,12 @@ class ASONExecutor:
         return {"accepted": True, "violations": [], "apex_response": apex_response}
 
 
-def _plan_to_task(req: ASONRequest) -> str:
-    """Serialize ASONRequest to a task string apex run() can execute."""
-    steps = [{"tool": s.tool, "args": s.args} for s in req.plan.steps]
-    policy = req.policy.model_dump()
-    return json.dumps({"ason_plan": steps, "ason_policy": policy})
+def _apex_plan(req: ASONRequest) -> dict:
+    """Translate the approved steps to APEX's exact-execution representation."""
+    return {
+        "goal": "Execute ASON-approved plan",
+        "steps": [
+            {"type": "tool", "name": step.tool, "args": step.args}
+            for step in req.plan.steps
+        ] + [{"type": "halt", "reason": "ASON-approved plan complete"}],
+    }

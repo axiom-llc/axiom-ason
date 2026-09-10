@@ -5,10 +5,12 @@ from .schema import ASONRequest, ASONResult
 _BLOCKED_TOOLS = {"shell"}  # tools never permitted regardless of policy
 
 _BLAST_RADIUS_BLOCKS: dict[str, set[str]] = {
-    "none":    {"write_file", "delete_file", "http_get", "http_post"},
-    "local":   {"http_get", "http_post"},
+    "none":    {"write_file", "delete_file", "memory_write", "http_get", "http_post", "rag_multi_query"},
+    "local":   {"http_get", "http_post", "rag_multi_query"},
     "network": set(),
 }
+
+_CLASSIFIED_TOOLS = {"read_file", "memory_read"} | _BLAST_RADIUS_BLOCKS["none"]
 
 
 def validate(req: ASONRequest) -> ASONResult:
@@ -23,6 +25,8 @@ def validate(req: ASONRequest) -> ASONResult:
     for i, step in enumerate(req.plan.steps):
         if step.tool in _BLOCKED_TOOLS:
             violations.append(f"step {i}: tool '{step.tool}' is unconditionally blocked")
+        elif step.tool not in _CLASSIFIED_TOOLS:
+            violations.append(f"step {i}: tool '{step.tool}' has no blast-radius classification")
         elif allowed and step.tool not in allowed:
             violations.append(f"step {i}: tool '{step.tool}' not in allowed_tools")
 
