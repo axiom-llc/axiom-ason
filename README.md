@@ -19,19 +19,41 @@ Enforcement at validation time:
   - `network` — no additional blocks
 
 ## APEX Contract
-ASON submits schema-valid plans to APEX:
+Supply an ASON request to `ASONExecutor.submit` or `ason submit`:
 
 ```json
 {
-  "plan": { "...schema-valid APEX plan..." },
+  "plan": {"steps": [{"tool": "read_file", "args": {"path": "/tmp/input.txt"}}]},
   "policy": {
     "max_steps": 16,
-    "allowed_tools": ["read_file", "http_get"],
-    "blast_radius": "local|network|none",
-    "rollback_on_failure": true
+    "allowed_tools": ["read_file"],
+    "blast_radius": "local",
+    "rollback_on_failure": false
   }
 }
 ```
+
+ASON validates every step against the supplied policy before making an HTTP
+request. It then sends this distinct APEX request body to `POST /run`, with
+`Content-Type: application/json` and `X-Apex-Key` when configured:
+
+```json
+{
+  "plan": {
+    "goal": "Execute ASON-approved plan",
+    "steps": [
+      {"type": "tool", "name": "read_file", "args": {"path": "/tmp/input.txt"}},
+      {"type": "halt", "reason": "ASON-approved plan complete"}
+    ]
+  }
+}
+```
+
+Tool order, names, and JSON arguments are preserved. The adapter adds only the
+fixed goal, tool-step tags, and terminal halt; it sends neither `task` nor
+`policy`. APEX's separate `{"task": ...}` interface retains planning for direct
+callers, but ASON never uses it. ASON governs the submitted policy; it does not
+construct a natural-language plan or transmit a durable approval identity.
 
 Requires APEX 3.1.0 or newer. ASON translates approved steps into APEX tool
 steps followed by a halt and submits `{"plan": ...}` to `POST /run`. APEX validates
@@ -40,11 +62,20 @@ Its 32-step ceiling includes the final halt (at most 31 tool calls). Schema-inva
 or unavailable tools are rejected by APEX before execution. Unclassified custom
 tools are rejected by ASON; deployed tool implementations must match their stated
 classification. Policy enforcement assumes callers cannot bypass ASON using the
-APEX API key directly.
+APEX API key directly and that trusted application code chooses the policy.
+APEX schema validation is not a second policy engine.
 
 `accepted` reports ASON policy approval. Check `error` and
 `apex_response.exit_code` for execution success. The CLI exits nonzero on policy,
 transport, APEX validation, or execution failure.
+
+The integration suite checks equality of the submitted plan, APEX response,
+recorded plan, and executed tool arguments with replanning disabled. It also
+checks that later policy violations prevent submission and later APEX schema
+errors prevent earlier effects. This establishes the current submission boundary;
+recorded-plan replay is also checked with replanning disabled, and dry/simulate
+replay does not execute tools. Live replay starts a new execution from step 0;
+these checks do not establish durable approval binding or crash-safe recovery.
 
 ## Rollback
 The optional `generate_rollback` helper generates a compensating plan by traversing the run's event log in reverse and applying the reversal map (`write_file → delete_file`). `shell` invocations are flagged as non-reversible. The helper is not invoked automatically by the executor; `rollback_on_failure` currently does not trigger automatic rollback. Generated reversal plans require review and policy validation before submission; deleting a written file cannot restore overwritten contents.
