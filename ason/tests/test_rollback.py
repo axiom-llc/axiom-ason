@@ -1,17 +1,14 @@
 """Tests for ASON rollback handler."""
 import json
 import sqlite3
-import tempfile
 from pathlib import Path
 import pytest
-from ason.schema import Policy
 from ason.rollback import generate_rollback
 
 
-def _make_db(events: list[tuple]) -> Path:
+def _make_db(tmp_path: Path, events: list[tuple]) -> Path:
     """Create a temp runs.db with given (run_id, step, tool, args_json) rows."""
-    tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
-    path = Path(tmp.name)
+    path = tmp_path / "runs.db"
     with sqlite3.connect(path) as conn:
         conn.execute(
             "CREATE TABLE events (id INTEGER PRIMARY KEY, run_id TEXT, step INTEGER, tool TEXT, args_json TEXT)"
@@ -27,52 +24,52 @@ def test_no_db_returns_none(tmp_path):
     assert generate_rollback("run-1", db_path=tmp_path / "nonexistent.db") is None
 
 
-def test_unknown_run_id_returns_none():
-    db = _make_db([("run-1", 0, "read_file", json.dumps({"path": "/tmp/x"}))])
+def test_unknown_run_id_returns_none(tmp_path):
+    db = _make_db(tmp_path, [("run-1", 0, "read_file", json.dumps({"path": "/tmp/x"}))])
     assert generate_rollback("run-99", db_path=db) is None
 
 
-def test_no_reversible_steps_returns_none():
-    db = _make_db([("run-1", 0, "read_file", json.dumps({"path": "/tmp/x"}))])
+def test_no_reversible_steps_returns_none(tmp_path):
+    db = _make_db(tmp_path, [("run-1", 0, "read_file", json.dumps({"path": "/tmp/x"}))])
     assert generate_rollback("run-1", db_path=db) is None
 
 
-def test_write_file_generates_delete():
-    db = _make_db([("run-1", 0, "write_file", json.dumps({"path": "/tmp/out.txt"}))])
-    req = generate_rollback("run-1", db_path=db)
-    assert req is not None
-    assert len(req.plan.steps) == 1
-    step = req.plan.steps[0]
-    assert step.tool == "delete_file"
-    assert step.args["path"] == "/tmp/out.txt"
+@pytest.mark.parametrize("result", [{"bytes_written": 3}, {"error": "unknown"}, None])
+@pytest.mark.parametrize("args", [{"path": "/tmp/out.txt", "content": "new"}, {}])
+def test_write_file_requires_manual_review(tmp_path, capsys, result, args):
+    db = _make_db(tmp_path, [("run-1", 0, "write_file", json.dumps(args))])
+    with sqlite3.connect(db) as conn:
+        conn.execute("ALTER TABLE events ADD COLUMN result_json TEXT")
+        conn.execute("UPDATE events SET result_json = ?", (json.dumps(result),))
+
+    # No request can reach validation/submission, including the old local-policy
+    # delete_file plan, regardless of outcome or availability of a path.
+    assert generate_rollback("run-1", db_path=db) is None
+    diagnostic = capsys.readouterr().err
+    assert "step 0 (write_file)" in diagnostic
+    assert "automatic compensation unavailable" in diagnostic
+    assert "manual review required" in diagnostic
+    for contract in ("authority", "durable preimage", "concurrency/version safety", "outcome reconciliation"):
+        assert contract in diagnostic
 
 
-def test_rollback_policy():
-    db = _make_db([("run-1", 0, "write_file", json.dumps({"path": "/tmp/f"}))])
-    req = generate_rollback("run-1", db_path=db)
-    assert req.policy.blast_radius == "local"
-    assert req.policy.rollback_on_failure is False
-
-
-def test_steps_reversed_order():
-    db = _make_db([
+def test_mixed_history_returns_no_partial_plan(tmp_path, capsys):
+    db = _make_db(tmp_path, [
         ("run-1", 0, "write_file", json.dumps({"path": "/tmp/a"})),
-        ("run-1", 1, "write_file", json.dumps({"path": "/tmp/b"})),
+        ("run-1", 1, "shell", json.dumps({"cmd": "echo example"})),
+        ("run-1", 2, "read_file", json.dumps({"path": "/tmp/a"})),
+        ("run-1", 3, "write_file", json.dumps({"path": "/tmp/b"})),
     ])
-    req = generate_rollback("run-1", db_path=db)
-    paths = [s.args["path"] for s in req.plan.steps]
-    assert paths == ["/tmp/b", "/tmp/a"]
+    assert generate_rollback("run-1", db_path=db) is None
+    diagnostics = capsys.readouterr().err.splitlines()
+    assert len(diagnostics) == 3
+    assert "step 3 (write_file)" in diagnostics[0]
+    assert "step 1 (shell)" in diagnostics[1]
+    assert "step 0 (write_file)" in diagnostics[2]
 
 
-def test_write_file_missing_path_skipped(capsys):
-    db = _make_db([("run-1", 0, "write_file", json.dumps({}))])
-    req = generate_rollback("run-1", db_path=db)
-    assert req is None
-    assert "skipped" in capsys.readouterr().err
-
-
-def test_shell_step_flagged_not_reversed(capsys):
-    db = _make_db([("run-1", 0, "shell", json.dumps({"cmd": "rm -rf /tmp/x"}))])
+def test_shell_step_flagged_not_reversed(tmp_path, capsys):
+    db = _make_db(tmp_path, [("run-1", 0, "shell", json.dumps({"cmd": "rm -rf /tmp/x"}))])
     req = generate_rollback("run-1", db_path=db)
     assert req is None
     assert "manual review" in capsys.readouterr().err

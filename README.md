@@ -78,7 +78,7 @@ replay does not execute tools. Live replay starts a new execution from step 0;
 these checks do not establish durable approval binding or crash-safe recovery.
 
 ## Rollback
-The optional `generate_rollback` helper generates a compensating plan by traversing the run's event log in reverse and applying the reversal map (`write_file → delete_file`). `shell` invocations are flagged as non-reversible. The helper is not invoked automatically by the executor; `rollback_on_failure` currently does not trigger automatic rollback. Generated reversal plans require review and policy validation before submission; deleting a written file cannot restore overwritten contents.
+The optional `generate_rollback` helper inspects run events in reverse order. It returns `None` for `write_file` and emits explicit manual-review guidance: automatic compensation is unavailable until compensation authority, durable preimage, concurrency/version safety, and outcome reconciliation contracts are defined. It never generates `delete_file` as an inverse of `write_file`. `shell` invocations retain their manual-review warning; other operations have no automatic inverse. `None` means no rollback plan is available, not that compensation succeeded. The helper is not invoked automatically by the executor; `rollback_on_failure` currently does not trigger automatic rollback.
 
 ## Test Suite
 Offline tests cover policy, exact APEX execution, and failure propagation across these categories:
