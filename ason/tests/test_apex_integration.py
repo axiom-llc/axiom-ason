@@ -90,6 +90,7 @@ def test_recorded_approved_plan_replays_without_replanning(bridge, monkeypatch, 
                                headers={"X-Apex-Key": "test-key"})
         assert response.get_json()["exit_code"] == 0
         execute.assert_not_called()
+    target.write_text("changed after completion")
     response = client.post("/replay", json={"run_id": run_id, "mode": "live"},
                            headers={"X-Apex-Key": "test-key"})
     assert response.get_json()["exit_code"] == 0
@@ -97,7 +98,9 @@ def test_recorded_approved_plan_replays_without_replanning(bridge, monkeypatch, 
     from apex.core.types import plan_to_dict
     assert plan_to_dict(execute.call_args.args[1]) == approved
     replayed = history.list_runs()[0]
-    assert replayed["id"] != run_id
+    assert replayed["id"] == run_id
+    assert execute.call_args.kwargs["run_id"] == run_id
+    assert target.read_text() == "changed after completion"
     assert history.load_run(replayed["id"])["plan"] == approved
     assert [(event["tool"], event["args"]) for event in history.load_events(replayed["id"])] == [
         (step["name"], step["args"]) for step in approved["steps"][:-1]
