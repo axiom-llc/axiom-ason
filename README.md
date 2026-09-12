@@ -99,13 +99,12 @@ It runs the complete suite outside the checkouts with `--import-mode=importlib`
 so ASON exercises the installed APEX runtime. Full portfolio/container checks
 remain in `axiom-infra`.
 
-Private RAG checkout uses this repository's `RAG_DEPLOY_KEY` Actions secret,
-backed by a dedicated read-only deploy key on `axiom-rag`. All checkouts remove
-credentials before builds or tests run. Fork pull requests cannot access this
-secret; validate those changes from a reviewed branch in this repository.
-To rotate the key, add a new read-only RAG deploy key, replace this secret, verify
-CI, then remove the old key. Delete the deploy key to revoke access immediately;
-these keys do not expire automatically. Never commit or log private key material.
+The current CI workflow still references the `RAG_DEPLOY_KEY` Actions secret
+for its `axiom-rag` checkout and uses `persist-credentials: false`. All AXIOM
+repositories are currently public, so that key is no longer a repository-
+visibility requirement; removing the workflow reference and credential is a
+separate validated cleanup task. CI records dependency revisions and verifies
+that checkout credentials are removed before package build and test execution.
 
 ## Usage
 ```bash
