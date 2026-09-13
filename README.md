@@ -124,12 +124,9 @@ It runs the complete suite outside the checkouts with `--import-mode=importlib`
 so ASON exercises the installed APEX runtime. Full portfolio/container checks
 remain in `axiom-infra`.
 
-The current CI workflow still references the `RAG_DEPLOY_KEY` Actions secret
-for its `axiom-rag` checkout and uses `persist-credentials: false`. All AXIOM
-repositories are currently public, so that key is no longer a repository-
-visibility requirement; removing the workflow reference and credential is a
-separate validated cleanup task. CI records dependency revisions and verifies
-that checkout credentials are removed before package build and test execution.
+CI checks out the public RAG and APEX repositories at `main` with
+`persist-credentials: false`. It records dependency revisions and verifies that
+checkout credentials are removed before package build and test execution.
 
 ## Usage
 ```bash

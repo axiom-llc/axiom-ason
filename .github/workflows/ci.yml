@@ -18,7 +18,6 @@ jobs:
           repository: axiom-llc/axiom-rag
           ref: main
           path: axiom-rag
-          ssh-key: ${{ secrets.RAG_DEPLOY_KEY }}
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
