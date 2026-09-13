@@ -1,12 +1,17 @@
-# axiom-ason
-**v0.2.0** · ASON — Autonomous Security Optimization Network · Pre-execution policy enforcement layer for APEX · Python 3.11+ · MIT
+# AXIOM ASON
 
-## System Boundary
-- **APEX** — execution / control plane
-- **ASON** — policy enforcement / decision layer
-- **RAG** — grounding / retrieval substrate
+ASON is AXIOM's pre-execution policy enforcement layer for APEX. Version
+`0.2.0` is current source and requires Python 3.11+ plus APEX 3.1.0 or newer.
+It validates caller-supplied plans; it is not a natural-language planner and
+does not independently execute tools.
 
-## What ASON Does
+## System boundary
+
+- **APEX** — execution/runtime.
+- **ASON** — pre-execution policy enforcement.
+- **RAG** — retrieval/storage HTTP service and library.
+
+## Policy enforcement
 ASON validates and governs plan submission to APEX before any execution begins. Plans that violate policy are rejected at the API boundary — not at runtime.
 
 Enforcement at validation time:
@@ -74,13 +79,33 @@ recorded plan, and executed tool arguments with replanning disabled. It also
 checks that later policy violations prevent submission and later APEX schema
 errors prevent earlier effects. This establishes the current submission boundary;
 recorded-plan replay is also checked with replanning disabled, and dry/simulate
-replay does not execute tools. Live replay starts a new execution from step 0;
-these checks do not establish durable approval binding or crash-safe recovery.
+replay does not execute tools. Live replay uses APEX's durable same-run recovery:
+completed steps reuse recorded results, while ambiguous dispatch states block
+further execution. ASON does not durably bind policy-approval identity to that
+recovery record; these checks therefore do not establish durable approval
+binding or a stronger external-effect guarantee.
 
 ## Rollback
 The optional `generate_rollback` helper inspects run events in reverse order. It returns `None` for `write_file` and emits explicit manual-review guidance: automatic compensation is unavailable until compensation authority, durable preimage, concurrency/version safety, and outcome reconciliation contracts are defined. It never generates `delete_file` as an inverse of `write_file`. `shell` invocations retain their manual-review warning; other operations have no automatic inverse. `None` means no rollback plan is available, not that compensation succeeded. The helper is not invoked automatically by the executor; `rollback_on_failure` currently does not trigger automatic rollback.
 
-## Test Suite
+## Installation
+
+The current APEX/RAG architecture is unreleased. Do not use a bare
+`pip install axiom-ason` as a path to this integrated source state. For local
+development, use matching sibling checkouts:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install ../axiom-rag
+python -m pip install -e ../axiom-apex
+python -m pip install -e .
+```
+
+This does not create or imply a published APEX/RAG artifact. See the owning
+APEX and RAG release documentation for their separate authorization gates.
+
+## Validation
 Offline tests cover policy, exact APEX execution, and failure propagation across these categories:
 - CAT1: blast_radius rejection
 - CAT2: max_steps violation
@@ -108,9 +133,16 @@ that checkout credentials are removed before package build and test execution.
 
 ## Usage
 ```bash
-pip install axiom-ason
 ason submit plan.json --apex-url http://127.0.0.1:8080
 ```
 
+## Related AXIOM components
+
+- [APEX](https://github.com/axiom-llc/axiom-apex) — execution/runtime.
+- [RAG](https://github.com/axiom-llc/axiom-rag) — required by current APEX source.
+- [Infra](https://github.com/axiom-llc/axiom-infra) — local portfolio integration.
+
 ## License
-MIT — [AXIOM LLC](https://axiom-llc.github.io)
+
+No license file is currently present in this repository; confirm distribution
+terms before reuse.
