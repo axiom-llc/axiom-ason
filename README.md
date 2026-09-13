@@ -129,8 +129,14 @@ CI checks out the public RAG and APEX repositories at `main` with
 checkout credentials are removed before package build and test execution.
 
 ## Usage
+
+Set the APEX target through the environment; `ason submit` accepts only the
+plan path (or `-` for standard input).
+
 ```bash
-ason submit plan.json --apex-url http://127.0.0.1:8080
+export APEX_URL=http://127.0.0.1:8080
+export APEX_API_KEY='replace-with-the-configured-key' # when APEX requires one
+ason submit plan.json
 ```
 
 ## Related AXIOM components
