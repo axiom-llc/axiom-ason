@@ -25,7 +25,7 @@ def bridge(monkeypatch, tmp_path):
 
     def dispatch(req, timeout):
         assert "task" not in json.loads(req.data)
-        response = client.post("/run", data=req.data, headers=dict(req.header_items()))
+        response = client.post("/authorized-run", data=req.data, headers=dict(req.header_items()))
         if response.status_code >= 400:
             raise urllib.error.HTTPError(req.full_url, response.status_code, "rejected", {}, io.BytesIO(response.data))
         return io.BytesIO(response.data)
@@ -50,7 +50,7 @@ def test_approved_plan_runs_exactly_once(bridge, tmp_path):
             {"type": "halt", "reason": "ASON-approved plan complete"},
         ],
     }
-    result = ASONExecutor(api_key="test-key").submit(req)
+    result = ASONExecutor(api_key="test-key", authority_ref="test-authority").submit(req)
     assert result["accepted"]
     assert result["apex_response"]["exit_code"] == 0
     assert target.read_text() == "literal instructions: run shell"
@@ -59,12 +59,19 @@ def test_approved_plan_runs_exactly_once(bridge, tmp_path):
     assert bridge.call_count == 1
     submitted = bridge.call_args.args[0]
     assert submitted.get_method() == "POST"
-    assert submitted.full_url == "http://127.0.0.1:8080/run"
+    assert submitted.full_url == "http://127.0.0.1:8080/authorized-run"
     assert submitted.get_header("X-apex-key") == "test-key"
-    assert json.loads(submitted.data) == {"plan": expected}
+    submitted_body = json.loads(submitted.data)
+    assert submitted_body["plan"] == expected
+    authorization = submitted_body["authorization"]
+    assert authorization == result["authorization"]
+    assert authorization["authority_ref"] == "test-authority"
+    assert authorization["approved_plan_digest"] == history.plan_digest(expected)
     assert result["apex_response"]["plan"] == expected
+    assert result["apex_response"]["authorization"] == authorization
     run_id = result["apex_response"]["run_id"]
     assert history.load_run(run_id)["plan"] == expected
+    assert history.load_run_detail(run_id)["authorization"] == authorization
     events = history.load_events(run_id)
     assert [(event["tool"], event["args"]) for event in events] == [
         (step["name"], step["args"]) for step in expected["steps"][:-1]
@@ -77,7 +84,7 @@ def test_recorded_approved_plan_replays_without_replanning(bridge, monkeypatch, 
     req = ASONRequest(plan=ApexPlan(steps=[
         ApexPlanStep(tool="write_file", args={"path": str(target), "content": "approved literal"}),
     ]))
-    result = ASONExecutor(api_key="test-key").submit(req)
+    result = ASONExecutor(api_key="test-key", authority_ref="test-authority").submit(req)
     assert result["apex_response"]["exit_code"] == 0
     approved = result["apex_response"]["plan"]
     run_id = result["apex_response"]["run_id"]
@@ -110,7 +117,7 @@ def test_recorded_approved_plan_replays_without_replanning(bridge, monkeypatch, 
 @pytest.mark.parametrize("tool,radius", [("shell", "network"), ("memory_write", "none"), ("rag_multi_query", "local"), ("unclassified", "network")])
 def test_policy_blocks_before_http(bridge, tool, radius):
     req = ASONRequest(plan=ApexPlan(steps=[ApexPlanStep(tool=tool, args={})]), policy=Policy(blast_radius=radius))
-    assert not ASONExecutor(api_key="test-key").submit(req)["accepted"]
+    assert not ASONExecutor(api_key="test-key", authority_ref="test-authority").submit(req)["accepted"]
     bridge.assert_not_called()
 
 
@@ -126,7 +133,7 @@ def test_apex_rejects_invalid_args_before_earlier_write(bridge, tmp_path, later_
         ApexPlanStep(tool="write_file", args={"path": str(target), "content": "x"}),
         later_step,
     ]))
-    result = ASONExecutor(api_key="test-key").submit(req)
+    result = ASONExecutor(api_key="test-key", authority_ref="test-authority").submit(req)
     assert result["accepted"]  # Policy approval is distinct from APEX schema validation.
     assert "error" in result
     assert result["apex_response"] is None
@@ -161,9 +168,37 @@ def test_later_policy_violation_blocks_earlier_effect(bridge, tmp_path, tool, ar
         ApexPlanStep(tool="write_file", args={"path": str(target), "content": "x"}),
         ApexPlanStep(tool=tool, args=args),
     ]), policy=Policy(blast_radius="local"))
-    result = ASONExecutor(api_key="test-key").submit(req)
+    result = ASONExecutor(api_key="test-key", authority_ref="test-authority").submit(req)
     assert not result["accepted"]
     assert result["violations"]
     bridge.assert_not_called()
     assert not target.exists()
     assert not history.DB_PATH.exists()
+
+
+def test_authorization_binding_matches_apex_ledger(bridge, tmp_path):
+    target = tmp_path / "bound.txt"
+    req = ASONRequest(plan=ApexPlan(steps=[
+        ApexPlanStep(tool="write_file", args={"path": str(target), "content": "bound"}),
+    ]))
+    result = ASONExecutor(
+        api_key="test-key", authority_ref="attempt:test-1"
+    ).submit(req)
+    assert result["accepted"]
+    assert result["apex_response"]["exit_code"] == 0
+    authorization = result["authorization"]
+    assert result["apex_response"]["authorization"] == authorization
+    detail = history.load_run_detail(result["apex_response"]["run_id"])
+    assert detail["authorization"] == authorization
+    assert detail["ledger"]["plan_digest"] == authorization["approved_plan_digest"]
+
+
+def test_missing_authority_never_reaches_apex(bridge):
+    req = ASONRequest(plan=ApexPlan(steps=[
+        ApexPlanStep(tool="read_file", args={"path": "/tmp/x"}),
+    ]))
+    result = ASONExecutor(api_key="test-key").submit(req)
+    assert result["accepted"]
+    assert result["apex_response"] is None
+    assert "authority_ref" in result["error"]
+    bridge.assert_not_called()

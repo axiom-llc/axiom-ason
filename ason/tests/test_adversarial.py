@@ -184,19 +184,27 @@ class TestConcurrentIsolation:
     def test_concurrent_executor_submits_independently(self):
         N = 10
         call_count = {"n": 0}
+        authorization_ids = []
         lock = threading.Lock()
 
         def fake_urlopen(req, timeout=None):
+            body = json.loads(req.data)
+            assert req.full_url == "http://127.0.0.1:8080/authorized-run"
+            assert body["authorization"]["authority_ref"] == "test-concurrent"
             with lock:
                 call_count["n"] += 1
-            return _fake_apex_resp(run_id=call_count["n"])
+                authorization_ids.append(body["authorization"]["authorization_id"])
+                run_id = call_count["n"]
+            return _fake_apex_resp(run_id=run_id)
 
-        ex = ASONExecutor(api_key="k")
+        ex = ASONExecutor(api_key="k", authority_ref="test-concurrent")
 
         def run(_):
             req = _req([("read_file", {"path": "/tmp/x"})])
             with mock.patch("urllib.request.urlopen", side_effect=fake_urlopen):
-                ex.submit(req)
+                result = ex.submit(req)
+            assert result["accepted"]
+            assert result["apex_response"] is not None
 
         threads = [threading.Thread(target=run, args=(i,)) for i in range(N)]
         for t in threads:
@@ -205,3 +213,5 @@ class TestConcurrentIsolation:
             t.join()
 
         assert call_count["n"] == N
+        assert len(authorization_ids) == N
+        assert len(set(authorization_ids)) == N

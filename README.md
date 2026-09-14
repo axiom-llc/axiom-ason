@@ -1,7 +1,7 @@
 # AXIOM ASON
 
 ASON is AXIOM's pre-execution policy enforcement layer for APEX. Version
-`0.2.0` is current source and requires Python 3.11+ plus APEX 3.1.0 or newer.
+`0.3.0` is current source and requires Python 3.11+ plus APEX 3.2.0 or newer.
 It validates caller-supplied plans; it is not a natural-language planner and
 does not independently execute tools.
 
@@ -39,7 +39,9 @@ Supply an ASON request to `ASONExecutor.submit` or `ason submit`:
 ```
 
 ASON validates every step against the supplied policy before making an HTTP
-request. It then sends this distinct APEX request body to `POST /run`, with
+request. Authorized dispatch also requires a caller-supplied `authority_ref`
+(`ASON_AUTHORITY_REF` or `--authority-ref`). ASON generates a unique
+authorization ID and sends this distinct request to `POST /authorized-run`, with
 `Content-Type: application/json` and `X-Apex-Key` when configured:
 
 ```json
@@ -50,19 +52,29 @@ request. It then sends this distinct APEX request body to `POST /run`, with
       {"type": "tool", "name": "read_file", "args": {"path": "/tmp/input.txt"}},
       {"type": "halt", "reason": "ASON-approved plan complete"}
     ]
+  },
+  "authorization": {
+    "authorization_id": "<generated UUID>",
+    "approved_plan_digest": "<SHA-256 of the exact APEX plan>",
+    "policy_digest_or_ref": "<SHA-256 of the validated policy>",
+    "authority_ref": "<caller-supplied reference>",
+    "decision": true
   }
 }
 ```
 
 Tool order, names, and JSON arguments are preserved. The adapter adds only the
-fixed goal, tool-step tags, and terminal halt; it sends neither `task` nor
-`policy`. APEX's separate `{"task": ...}` interface retains planning for direct
-callers, but ASON never uses it. ASON governs the submitted policy; it does not
-construct a natural-language plan or transmit a durable approval identity.
+fixed goal, tool-step tags, terminal halt, and authorization metadata; it sends
+neither `task` nor the policy body. APEX's separate `{"task": ...}` interface
+retains planning for direct callers, but ASON never uses it. ASON governs the
+submitted policy and transmits its digest/reference, exact approved-plan digest,
+authorization identity, and caller-supplied authority reference.
 
-Requires APEX 3.1.0 or newer. ASON translates approved steps into APEX tool
-steps followed by a halt and submits `{"plan": ...}` to `POST /run`. APEX validates
-the entire plan against its active registry and executes it without replanning.
+Requires APEX 3.2.0 or newer. ASON translates approved steps into APEX tool
+steps followed by a halt and submits the exact plan plus authorization binding
+to `POST /authorized-run`. Older APEX versions fail closed because that route
+does not exist. APEX validates the entire plan and authorization binding against
+its active registry before executing without replanning.
 Its 32-step ceiling includes the final halt (at most 31 tool calls). Schema-invalid
 or unavailable tools are rejected by APEX before execution. Unclassified custom
 tools are rejected by ASON; deployed tool implementations must match their stated
@@ -81,9 +93,11 @@ errors prevent earlier effects. This establishes the current submission boundary
 recorded-plan replay is also checked with replanning disabled, and dry/simulate
 replay does not execute tools. Live replay uses APEX's durable same-run recovery:
 completed steps reuse recorded results, while ambiguous dispatch states block
-further execution. ASON does not durably bind policy-approval identity to that
-recovery record; these checks therefore do not establish durable approval
-binding or a stronger external-effect guarantee.
+further execution. Authorized runs also persist the authorization identity,
+approved-plan digest, policy digest/reference, authority reference, and decision
+before dispatch and re-check that durable binding during recovery. These checks
+do not establish exactly-once external effects or a stronger remote-effect
+guarantee.
 
 ## Rollback
 The optional `generate_rollback` helper inspects run events in reverse order. It returns `None` for `write_file` and emits explicit manual-review guidance: automatic compensation is unavailable until compensation authority, durable preimage, concurrency/version safety, and outcome reconciliation contracts are defined. It never generates `delete_file` as an inverse of `write_file`. `shell` invocations retain their manual-review warning; other operations have no automatic inverse. `None` means no rollback plan is available, not that compensation succeeded. The helper is not invoked automatically by the executor; `rollback_on_failure` currently does not trigger automatic rollback.
@@ -130,14 +144,18 @@ checkout credentials are removed before package build and test execution.
 
 ## Usage
 
-Set the APEX target through the environment; `ason submit` accepts only the
-plan path (or `-` for standard input).
+Set the APEX target and an authoritative reference through the environment.
+`authority_ref` is an opaque reference supplied by the caller/Harness; ASON does
+not invent human approval or authority.
 
 ```bash
 export APEX_URL=http://127.0.0.1:8080
 export APEX_API_KEY='replace-with-the-configured-key' # when APEX requires one
+export ASON_AUTHORITY_REF='replace-with-the-caller-authority-reference'
 ason submit plan.json
 ```
+
+The CLI also accepts `--authority-ref REF` for per-submission binding.
 
 ## Related AXIOM components
 
