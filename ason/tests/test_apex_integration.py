@@ -193,6 +193,26 @@ def test_authorization_binding_matches_apex_ledger(bridge, tmp_path):
     assert detail["ledger"]["plan_digest"] == authorization["approved_plan_digest"]
 
 
+def test_durable_authorization_provenance_survives_without_reissue(bridge, tmp_path):
+    target = tmp_path / "durable-auth.txt"
+    req = ASONRequest(plan=ApexPlan(steps=[
+        ApexPlanStep(tool="write_file", args={"path": str(target), "content": "durable"}),
+    ]))
+    result = ASONExecutor(api_key="test-key", authority_ref="attempt:durable-1").submit(req)
+    assert result["apex_response"]["exit_code"] == 0
+    run_id = result["apex_response"]["run_id"]
+    authorization = result["authorization"]
+
+    # Drop the caller response and reload only durable state. Recovery must not
+    # require the caller to mint or resubmit an authorization already bound to the run.
+    del result
+    detail = history.load_run_detail(run_id)
+    assert detail["authorization"] == authorization
+    assert detail["ledger"]["plan_digest"] == authorization["approved_plan_digest"]
+    effects = history.bound_effects(run_id, detail["plan_json"], authorization=None)
+    assert effects[0]["state"] == "SUCCEEDED"
+
+
 def test_missing_authority_never_reaches_apex(bridge):
     req = ASONRequest(plan=ApexPlan(steps=[
         ApexPlanStep(tool="read_file", args={"path": "/tmp/x"}),
