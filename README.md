@@ -104,9 +104,13 @@ The optional `generate_rollback` helper inspects run events in reverse order. It
 
 ## Installation
 
-The current APEX/RAG architecture is unreleased. Do not use a bare
-`pip install axiom-ason` as a path to this integrated source state. For local
-development, use matching sibling checkouts:
+ASON 0.3.0 and its required APEX 3.2.0 are not yet published as GitHub
+Releases. RAG 1.5.0 is published; the published APEX 3.1.1 baseline does
+not satisfy ASON's `axiom-apex>=3.2.0` dependency. Do not use a bare
+`pip install axiom-ason` as a path to this integrated source state.
+
+For development, use sibling checkouts containing RAG 1.5.0, APEX 3.2.0,
+and ASON 0.3.0. Run the following from the ASON checkout:
 
 ```bash
 python -m venv .venv
@@ -116,8 +120,9 @@ python -m pip install -e ../axiom-apex
 python -m pip install -e .
 ```
 
-This does not create or imply a published APEX/RAG artifact. See the owning
-APEX and RAG release documentation for their separate authorization gates.
+These commands install source checkouts; they do not publish artifacts.
+See [APEX release gates](https://github.com/axiom-llc/axiom-apex/blob/main/RELEASE.md)
+and the [published RAG release](https://github.com/axiom-llc/axiom-rag/releases/tag/v1.5.0).
 
 ## Validation
 Offline tests cover policy, exact APEX execution, and failure propagation across these categories:
