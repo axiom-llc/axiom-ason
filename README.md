@@ -16,7 +16,7 @@ ASON validates and governs plan submission to APEX before any execution begins. 
 
 Enforcement at validation time:
 - `len(plan.steps) ≤ policy.max_steps`
-- No step invokes a tool in the blocked set (`shell` by default)
+- No step invokes a tool in the blocked set (`shell` is always blocked)
 - If `allowed_tools` is non-empty, every step's tool must appear in it
 - `blast_radius` classification blocks tools by impact envelope:
   - `none` — blocks filesystem/memory writes and network tools (read-only)
@@ -109,20 +109,39 @@ Releases. RAG 1.5.0 is published; the published APEX 3.1.1 baseline does
 not satisfy ASON's `axiom-apex>=3.2.0` dependency. Do not use a bare
 `pip install axiom-ason` as a path to this integrated source state.
 
-For development, use sibling checkouts containing RAG 1.5.0, APEX 3.2.0,
-and ASON 0.3.0. Run the following from the ASON checkout:
+For development, use Python 3.11 or 3.12 on Linux/macOS (APEX uses POSIX
+signals). Windows users need a Linux environment such as WSL. From a directory
+where these repository names do not already exist:
 
 ```bash
-python -m venv .venv
+git clone https://github.com/axiom-llc/axiom-rag.git
+git clone https://github.com/axiom-llc/axiom-apex.git
+git clone https://github.com/axiom-llc/axiom-ason.git
+cd axiom-ason
+python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install ../axiom-rag
-python -m pip install -e ../axiom-apex
-python -m pip install -e .
+python -m pip install ../axiom-rag -e ../axiom-apex -e . 'pytest>=8'
+python -m pip check
 ```
+
+Use matching RAG 1.5.0, APEX 3.2.0 and ASON 0.3.0 source versions, declared
+in each checkout's `pyproject.toml`. If the checkouts already exist, use those
+instead of cloning over them. Dependencies require package-index access.
 
 These commands install source checkouts; they do not publish artifacts.
 See [APEX release gates](https://github.com/axiom-llc/axiom-apex/blob/main/RELEASE.md)
 and the [published RAG release](https://github.com/axiom-llc/axiom-rag/releases/tag/v1.5.0).
+
+## Implementation evidence
+
+| Inspect | What it demonstrates |
+| --- | --- |
+| [Policy validator](ason/validator.py) | Step limits, tool allowlists and impact classifications before submission. |
+| [Policy tests](ason/tests/test_validator.py) | Accepted plans and explicit rejection cases. |
+| [APEX integration tests](ason/tests/test_apex_integration.py) | Exact-plan dispatch, failure propagation and authorization/recovery bindings with provider calls mocked. |
+
+These are project-controlled implementation and test artifacts, not evidence of
+customer deployment or independent security assurance.
 
 ## Validation
 Offline tests cover policy, exact APEX execution, and failure propagation across these categories:
