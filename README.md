@@ -189,5 +189,4 @@ The CLI also accepts `--authority-ref REF` for per-submission binding.
 
 ## License
 
-No license file is currently present in this repository; confirm distribution
-terms before reuse.
+AXIOM-authored software is available under the [MIT License](LICENSE).
