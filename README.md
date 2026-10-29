@@ -1,9 +1,10 @@
-# AXIOM ASON
+# AXIOM ASON — Policy Enforcement
+
+Canonical package development and integrated validation now live in [AXIOM APEX](https://github.com/axiom-llc/axiom-apex/tree/main/packages/ason). This repository preserves the original package history and existing consumer URLs.
 
 ASON is AXIOM's pre-execution policy enforcement layer for APEX. Version
 `0.3.0` is current source and requires Python 3.11+ plus APEX 3.2.0 or newer.
-It validates caller-supplied plans; it is not a natural-language planner and
-does not independently execute tools.
+It validates caller-supplied plans before APEX executes their authorized effects.
 
 ## System boundary
 
